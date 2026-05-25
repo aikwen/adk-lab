@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Any, Mapping, Sequence
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -188,6 +189,7 @@ class MainWindow(QMainWindow):
 
         self._left_frame = QFrame(self)
         self._left_frame.setObjectName("LeftFrame")
+        self._left_frame.setMinimumWidth(260)
         self._left_frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         left_layout = QVBoxLayout(self._left_frame)
@@ -197,6 +199,7 @@ class MainWindow(QMainWindow):
 
         self._right_frame = QFrame(self)
         self._right_frame.setObjectName("RightFrame")
+        self._right_frame.setMinimumWidth(480)
         self._right_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         right_layout = QVBoxLayout(self._right_frame)
@@ -204,11 +207,15 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)
         right_layout.addWidget(self._inspect_tabs)
 
-        content_layout = QHBoxLayout()
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(12)
-        content_layout.addWidget(self._left_frame, 2)
-        content_layout.addWidget(self._right_frame, 5)
+        self._content_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self._content_splitter.setObjectName("ContentSplitter")
+        self._content_splitter.setChildrenCollapsible(False)
+        self._content_splitter.setHandleWidth(8)
+        self._content_splitter.addWidget(self._left_frame)
+        self._content_splitter.addWidget(self._right_frame)
+        self._content_splitter.setStretchFactor(0, 2)
+        self._content_splitter.setStretchFactor(1, 5)
+        self._content_splitter.setSizes([360, 920])
 
         root = QWidget(self)
         root.setObjectName("Root")
@@ -216,7 +223,7 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(12, 12, 12, 12)
         root_layout.setSpacing(12)
         root_layout.addWidget(self._top_bar)
-        root_layout.addLayout(content_layout, 1)
+        root_layout.addWidget(self._content_splitter, 1)
 
         self.setCentralWidget(root)
 
@@ -242,6 +249,18 @@ class MainWindow(QMainWindow):
             QFrame#RightFrame {
                 background: transparent;
                 border: none;
+            }
+
+            QSplitter#ContentSplitter {
+                background: transparent;
+            }
+
+            QSplitter#ContentSplitter::handle {
+                background: transparent;
+            }
+
+            QSplitter#ContentSplitter::handle:hover {
+                background: #d8d3cb;
             }
             """
         )
@@ -277,6 +296,34 @@ class MainWindow(QMainWindow):
 
     def currentSessionId(self) -> str:
         return self._top_bar.currentSessionId()
+
+    def setPanelSizes(self, left_width: int, right_width: int) -> None:
+        self._content_splitter.setSizes(
+            [
+                max(0, left_width),
+                max(0, right_width),
+            ]
+        )
+
+    def panelSizes(self) -> list[int]:
+        return self._content_splitter.sizes()
+
+    def setLeftPanelWidth(self, width: int) -> None:
+        sizes = self._content_splitter.sizes()
+        total = sum(sizes)
+
+        if total <= 0:
+            total = self.width()
+
+        self._content_splitter.setSizes(
+            [
+                max(0, width),
+                max(0, total - width),
+            ]
+        )
+
+    def contentSplitter(self) -> QSplitter:
+        return self._content_splitter
 
     def setRequests(self, requests: Sequence[RequestMessage | Mapping[str, str]]) -> None:
         self._request_panel.setRequests(requests)
@@ -625,7 +672,8 @@ if __name__ == "__main__":
             )
         )
 
-        if window.selectedRequest() is not None and window.selectedRequest().invocation_id == invocation_id:
+        selected_request = window.selectedRequest()
+        if selected_request is not None and selected_request.invocation_id == invocation_id:
             window.setResponseEvents(response_events_by_invocation[invocation_id])
 
         window.setSending(False)
